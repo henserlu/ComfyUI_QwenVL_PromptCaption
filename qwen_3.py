@@ -71,7 +71,7 @@ def load_qwen_components(model_dir: str, dtype: str):
 
 # --- 3. 图像预缩放函数 (OOM 关键修复) ---
 def resize_to_limit(image: Image.Image, max_side: int):
-    """强制将图像最大边长缩放到指定限制，并确保是 Qwen 所需的 28 的倍数。"""
+    """强制将图像最大边长缩放到指定限制，并确保是 Qwen 所需的 32 的倍数。"""
     width, height = image.size
     
     # 仅当超过限制时才进行缩放
@@ -81,8 +81,8 @@ def resize_to_limit(image: Image.Image, max_side: int):
         width = int(width * ratio)
         height = int(height * ratio)
         
-    # 2. 确保尺寸是 28 的倍数（Qwen 要求）
-    IMAGE_FACTOR = 28
+    # 2. 确保尺寸是 32 的倍数（Qwen3 要求）
+    IMAGE_FACTOR = 32
     new_width = ceil(width / IMAGE_FACTOR) * IMAGE_FACTOR
     new_height = ceil(height / IMAGE_FACTOR) * IMAGE_FACTOR
 
@@ -156,7 +156,7 @@ class Qwen3Caption:
                 "lang": (["中文", "English"], {"default": "中文"}),
                 "dtype": (["auto", "4bit", "8bit"], {"default": "auto"}), # 强烈建议默认 4bit
                 "keep_model_loaded": ("BOOLEAN", {"default": False}), # 默认保持加载
-                "max_side": ("INT", {"default": 532, "min": 252, "max": 2240, "step": 28}), # 默认安全尺寸
+                "max_side": ("INT", {"default": 512, "min": 256, "max": 2240, "step": 32}), # 默认安全尺寸
             }
         }
     RETURN_TYPES = ("STRING",)
@@ -274,7 +274,7 @@ class Qwen3CaptionBatch:
                 "lang": (["中文", "English"], {"default": "中文"}),
                 "dtype": (["auto", "4bit", "8bit"], {"default": "4bit"}), # 强烈建议默认 4bit
                 "keep_model_loaded": ("BOOLEAN", {"default": False}), # 默认保持加载
-                "max_side": ("INT", {"default": 532, "min": 252, "max": 2240, "step": 28}), # 默认安全尺寸
+                "max_side": ("INT", {"default": 512, "min": 256, "max": 2240, "step": 32}), # 默认安全尺寸
                 "image_path": ("STRING", {"default": ""}),
                 },
             "optional": {

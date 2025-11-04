@@ -81,7 +81,7 @@ def resize_to_limit(image: Image.Image, max_side: int):
         width = int(width * ratio)
         height = int(height * ratio)
         
-    # 2. 确保尺寸是 28 的倍数（Qwen 要求）
+    # 2. 确保尺寸是 28 的倍数（Qwen2.5 要求）
     IMAGE_FACTOR = 28
     new_width = ceil(width / IMAGE_FACTOR) * IMAGE_FACTOR
     new_height = ceil(height / IMAGE_FACTOR) * IMAGE_FACTOR
