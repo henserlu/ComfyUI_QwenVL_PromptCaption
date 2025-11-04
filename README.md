@@ -99,7 +99,7 @@ Edit `prompts.txt` in the custom_nodes folder (follow the existing format):
 ---
 
 ## 参数说明 | Parameter Notes
-### `keep model loaded`
+### `keep_model_loaded`
 - Use True to Keep model in VRAM for consecutive prompt inversion tasks  
   连续进行提示词反推时选 True  
 - False won't impact performance during batch node run  
