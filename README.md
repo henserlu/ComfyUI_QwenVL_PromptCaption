@@ -109,4 +109,8 @@ Edit `prompts.txt` in the custom_nodes folder (follow the existing format):
 - Pre-scales the image's longer side to this size  
   预缩放图片长边尺寸  
 - Larger values may reduce processing speed  
-  设置过大会导致速度下降
+  设置过大会导致速度下降  
+
+### `save_path`
+- will use image_path to save output if save_path not set  
+  save_path为空时会使用image_path保存输出  
