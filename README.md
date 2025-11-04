@@ -9,7 +9,7 @@ Leverages Qwen 2.5/3 VL for prompt inversion &amp; caption generation in ComfyUI
 
 ---
 
-## 包含节点 | Included Nodes
+## 节点 | Nodes
 1. Qwen 2.5 VL Caption: Single image prompt inversion  
    Qwen 2.5 VL Caption：单图提示词反推
 2. Qwen 2.5 VL Batch Caption: Batch image prompt inversion (folder input)  
