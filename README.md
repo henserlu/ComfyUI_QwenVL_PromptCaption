@@ -35,8 +35,8 @@ b. Manual install:
 ---
 
 ## 使用方法 | Usage
-1. Download the model (see [Model Notes](#模型说明-model-notes))  
-   下载模型（见【模型说明】）  
+1. Download the model  
+   下载模型  
 2. Edit prompt templates (optional)  
    编辑指令提示词（可选）  
 3. Adjust node inputs  
