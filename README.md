@@ -100,10 +100,10 @@ Edit `prompts.txt` in the custom_nodes folder (follow the existing format):
 
 ## 参数说明 | Parameter Notes
 ### `keep model loaded`
-- `Use True to Keep model in VRAM for consecutive prompt inversion tasks  
-  连续进行提示词反推时选 `True`  
+- Use True to Keep model in VRAM for consecutive prompt inversion tasks  
+  连续进行提示词反推时选 True  
 - False won't impact performance during batch node run  
-  批量节点选 `False`仅在全部图片处理完成后清理模型，不影响过程性能
+  批量节点选 False仅在全部图片处理完成后清理模型，不影响过程性能
 
 ### `max_side`
 - Pre-scales the image's longer side to this size  
