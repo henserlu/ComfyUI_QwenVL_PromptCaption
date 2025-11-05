@@ -23,8 +23,8 @@ Leverages Qwen 2.5/3 VL for prompt inversion &amp; caption generation in ComfyUI
 ---
 
 ## 安装方法 | Installation
-a. Via ComfyUI Manager (coming soon)  
-   通过 ComfyUI Manager 安装（即将支持）  
+a. Via ComfyUI Manager  
+   通过 ComfyUI Manager 安装  
 b. Manual install:  
    手动安装：
    1. Copy the plugin folder to `ComfyUI/custom_nodes/`  
