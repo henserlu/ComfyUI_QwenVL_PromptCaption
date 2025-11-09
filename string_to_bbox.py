@@ -149,9 +149,9 @@ class StringToBbox:
             bboxes = [[0, 0, 0, 0]]
         
         # 输出调试信息
-        print(f"提取到的原始坐标（千分比）：{all_bboxes}")
-        print(f"转换后的BBOXes（像素）：{bboxes}")
-        print(f"中心点坐标：{center_points}")
+        #print(f"提取到的原始坐标（千分比）：{all_bboxes}")
+        #print(f"转换后的BBOXes（像素）：{bboxes}")
+        #print(f"中心点坐标：{center_points}")
         
         # 返回结果（中心点JSON字符串 + BBOX列表）
         return (json.dumps(center_points), bboxes)

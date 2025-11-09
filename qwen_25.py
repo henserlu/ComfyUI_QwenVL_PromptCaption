@@ -153,10 +153,11 @@ class Qwen25Caption:
             "required": {
                 "image": ("IMAGE", ), # ComfyUI 的图像输入 Tensor
                 "model_path": (folder_paths.get_filename_list("text_encoders"), ),
-                "lang": (["中文", "English"], {"default": "中文"}),
+                "lang": (["中文", "English", "bbox"], {"default": "中文"}),
                 "dtype": (["auto", "4bit", "8bit"], {"default": "auto"}), # 强烈建议默认 4bit
                 "keep_model_loaded": ("BOOLEAN", {"default": False}), # 默认保持加载
                 "max_side": ("INT", {"default": 532, "min": 252, "max": 2240, "step": 28}), # 默认安全尺寸
+                "instruction": ("STRING", {"multiline": True}),
             }
         }
     RETURN_TYPES = ("STRING",)
@@ -166,7 +167,7 @@ class Qwen25Caption:
     OUTPUT_NODE = True
 
 
-    def caption(self, image: torch.Tensor, model_path: str, lang: str, dtype: str, max_side: int, keep_model_loaded: bool):
+    def caption(self, image: torch.Tensor, model_path: str, lang: str, dtype: str, max_side: int, keep_model_loaded: bool, instruction: str):
         
         if image is None:
             return {"ui": {"text": ("no image, 无图像",)}, "result": ("no image, 无图像",)} 
@@ -201,7 +202,15 @@ class Qwen25Caption:
             #"你是一名专业的AI绘画提示词工程师。你的任务是：根据输入的图像，直接且详细地生成一条高品质、可用于文生图模型的中文提示词。**不要提问或进行任何形式的对话，直接输出结果，只输出提示词本身。** 请确保提示词包含风格、光影、主体和高质量标签。"
             #"你是一名专业的AI绘画提示词工程师。请根据输入的图像，生成详细、富有创意且可以直接用于文生图模型的高品质中文提示词。"
         prompts_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "prompts.txt")
-        text_prompt = load_prompt_from_file(prompts_file, lang)  # 自动返回多行文本
+        if not instruction or not instruction.strip():
+            text_prompt = load_prompt_from_file(prompts_file, lang)  # 自动返回多行文本
+        else:
+            if lang == "中文":
+                text_prompt = instruction + "，使用中文"
+            elif lang == "English":
+                text_prompt = instruction + ". Use English"
+            elif lang == "bbox":
+                text_prompt = instruction + "，返回它们的最小边界框坐标列表。结果必须是一个Python列表的列表，即 [[x1, y1, x2, y2], [x3, y3, x4, y4], ...] 格式。坐标要求：所有坐标值必须是整数。坐标是归一化的，范围是0到1000（表示 0% 到 100% 乘以 10）。每个边界框的顺序为：[左上角X, 左上角Y, 右下角X, 右下角Y]。示例输出：[[250, 150, 450, 500], [600, 700, 800, 950]]请仅输出这个列表结构，不包含任何解释性文字或代码块。"
         print(text_prompt)
         
         messages = [
