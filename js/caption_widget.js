@@ -60,4 +60,3 @@ app.registerExtension({
 		}
 	},
 });
-
