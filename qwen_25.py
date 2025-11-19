@@ -37,8 +37,8 @@ def load_qwen_components(model_dir: str, dtype: str):
     elif dtype == "8bit":
         # 显存优化：使用 8bit 量化
         quantization_config = BitsAndBytesConfig(
-            load_in_8bit=True,  # 8bit比4bit显存占用高，但稳定性更好
-            bnb_8bit_quant_type="nf4",
+            load_in_8bit=True,
+            #bnb_8bit_quant_type="nf4",
             bnb_8bit_compute_dtype=torch.bfloat16,
         )
         model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
@@ -50,14 +50,14 @@ def load_qwen_components(model_dir: str, dtype: str):
         # 显存优化：使用 fp8 量化
         model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
             model_dir,
-            torch_dtype=torch.float8_e4m3fn,
+            dtype=torch.float8_e4m3fn,
             device_map="auto"
         )
     else:
         # 完整精度或 Auto 精度加载
         model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
             model_dir,
-            torch_dtype="auto",
+            dtype="auto",
             device_map="auto"
         )
 
