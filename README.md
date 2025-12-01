@@ -79,8 +79,7 @@ https://huggingface.co/Qwen/Qwen3-VL-4B-Instruct
 
 国内也可从网盘下载：https://pan.quark.cn/s/b3975e789c3c
 
-Support Ovis 2.5 models
-
+Support Ovis 2.5 models  
 新支持 Ovis 2.5 模型
 
 https://huggingface.co/AIDC-AI/Ovis2.5-2B
