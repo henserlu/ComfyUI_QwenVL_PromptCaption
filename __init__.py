@@ -1,6 +1,7 @@
 from .qwen_25 import Qwen25Caption, Qwen25CaptionBatch
 from .qwen_3 import Qwen3Caption, Qwen3CaptionBatch
 from .string_to_bbox import StringToBbox, StringToSam3Box
+from .ovis_25 import Ovis25Run
 
 # ----------------------------------------------------------------------------------
 # --- ComfyUI 映射 ---
@@ -14,7 +15,8 @@ NODE_CLASS_MAPPINGS = {
     "Qwen3Caption": Qwen3Caption,
     "Qwen3CaptionBatch": Qwen3CaptionBatch,
     "StringToBbox": StringToBbox,
-    "StringToSam3Box": StringToSam3Box
+    "StringToSam3Box": StringToSam3Box,
+    "Ovis25Run": Ovis25Run,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -23,7 +25,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "Qwen3Caption": "Qwen3 VL Caption (Inverse Prompt)",
     "Qwen3CaptionBatch": "Qwen3 VL Batch Caption",
     "StringToBbox": "String to BBOX",
-    "StringToSam3Box": "String to SAM3 Box"
+    "StringToSam3Box": "String to SAM3 Box",
+    "Ovis25Run": "Ovis2.5 Run",
 }
 
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS", "WEB_DIRECTORY"]
