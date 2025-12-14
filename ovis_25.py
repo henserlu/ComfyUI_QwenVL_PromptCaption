@@ -18,7 +18,7 @@ import re
 QWEN_MODEL_CACHE = {}
 
 
-# --- 2. Qwen 模型加载函数 (使用指定的 Qwen2_5_VLForConditionalGeneration) ---
+# --- 2. Qwen 模型加载函数 ---
 def load_ovis_components(model_dir: str, dtype: str):
     """加载 Qwen 模型、处理器和分词器，支持 4bit 量化。"""
     
@@ -31,6 +31,7 @@ def load_ovis_components(model_dir: str, dtype: str):
         )
         model = AutoModelForCausalLM.from_pretrained(
             model_dir,
+            dtype="auto",
             quantization_config=quantization_config,
             device_map="auto",
             trust_remote_code=True,
@@ -44,6 +45,7 @@ def load_ovis_components(model_dir: str, dtype: str):
         )
         model = AutoModelForCausalLM.from_pretrained(
             model_dir,
+            dtype="auto",
             quantization_config=quantization_config,
             device_map="auto",
             trust_remote_code=True,

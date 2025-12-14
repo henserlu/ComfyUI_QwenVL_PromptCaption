@@ -31,6 +31,7 @@ def load_qwen_components(model_dir: str, dtype: str):
         )
         model = Qwen3VLForConditionalGeneration.from_pretrained(
             model_dir,
+            dtype="auto",
             quantization_config=quantization_config,
             device_map="auto"
         )
@@ -43,6 +44,7 @@ def load_qwen_components(model_dir: str, dtype: str):
         )
         model = Qwen3VLForConditionalGeneration.from_pretrained(
             model_dir,
+            dtype="auto",
             quantization_config=quantization_config,
             device_map="auto"
         )
