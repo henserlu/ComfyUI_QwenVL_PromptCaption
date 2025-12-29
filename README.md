@@ -110,17 +110,21 @@ Edit `prompts.txt` in the custom_nodes folder (follow the existing format):
 ---
 
 ## 参数说明 | Parameter Notes
-### `keep_model_loaded`
-- Use True to Keep model in VRAM for consecutive prompt inversion tasks  
-  连续进行提示词反推时选 True  
-- False won't impact performance during batch node run  
-  批量节点选 False仅在全部图片处理完成后清理模型，不影响过程性能
-
 ### `max_side`
 - Pre-scales the image's longer side to this size  
   预缩放图片长边尺寸  
 - Larger values may reduce processing speed  
   设置过大会导致速度下降  
+
+### `keep_model_loaded`
+- Use True to Keep model in VRAM for consecutive prompt inversion tasks  
+  连续进行提示词反推时选 True  
+- False won't impact performance during batch node run  
+  批量节点选False仅在全部图片处理完成后清理模型，不影响过程性能
+
+### `unload_other_models`
+- Attempt to unload all models via ComfyUI model management before loading, to avoid VRAM-related loading failures.  
+  加载新模型前，尝试通过ComfyUI的model management卸载所有模型，以避免因剩余显存不足导致的加载失败。 
 
 ### `save_path`
 - will use image_path to save output if save_path not set  
