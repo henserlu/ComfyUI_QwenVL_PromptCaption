@@ -19,7 +19,7 @@ import hashlib
 QWEN_MODEL_CACHE = {}
 _model_cache_size = 2
 QWEN_RESULT_CACHE = {}
-_result_cache_size = 10
+_result_cache_size = 20
 _batch_cache_size = 100
 
 
@@ -626,3 +626,4 @@ class Qwen3CaptionBatch:
             stats = f"{count} image captioned, 共处理{count}张图片"
 
         return {"ui": {"text": (stats,)}, "result": (stats,)}
+
