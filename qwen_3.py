@@ -1,21 +1,26 @@
 import torch
 import numpy as np
 import gc
-from PIL import Image
+from PIL import Image, ImageOps
 from math import ceil
 # 必须使用用户指定的类，并确保 BitsAndBytesConfig 导入
 from transformers import Qwen3VLForConditionalGeneration, AutoTokenizer, AutoProcessor, BitsAndBytesConfig 
 # 假设 vision_process 位于同一目录或可导入
-from .vision_process import process_vision_info
+from .vision_process import process_vision_info, to_rgb
 import comfy.model_management as mm
 import folder_paths
 import os
 import datetime
+import hashlib
 
 
 # --- 1. Qwen 模型缓存 ---
 # 用于存储加载的模型，避免每次节点执行时都重新加载（时间效率优化）
 QWEN_MODEL_CACHE = {}
+_model_cache_size = 2
+QWEN_RESULT_CACHE = {}
+_result_cache_size = 10
+_batch_cache_size = 100
 
 
 # --- 2. Qwen 模型加载函数 (使用指定的 Qwen3VLForConditionalGeneration) ---
@@ -71,7 +76,7 @@ def load_qwen_components(model_dir: str, dtype: str):
     return model, processor
 
 
-# --- 3. 图像预缩放函数 (OOM 关键修复) ---
+# --- 3. 图像处理函数 ---
 def resize_to_limit(image: Image.Image, max_side: int):
     """强制将图像最大边长缩放到指定限制，并确保是 Qwen 所需的 32 的倍数。"""
     width, height = image.size
@@ -90,6 +95,20 @@ def resize_to_limit(image: Image.Image, max_side: int):
 
     return image.resize((int(new_width), int(new_height)), resample=Image.BICUBIC)
 
+def get_image_hash(pil_img: Image.Image):
+    if pil_img is None:
+        return "none"
+
+    # 1. 修复 EXIF 旋转（手机照片常见），确保像素排列顺序与 ComfyUI LoadImage 节点一致
+    # 2. 强制转换为 RGB（移除 Alpha 通道干扰）
+    img = ImageOps.exif_transpose(pil_img).convert("RGB")
+    
+    # 3. 转换为 uint8 numpy 数组
+    # 使用 numpy 数组作为中间体，确保内存布局是 C-style 连续的
+    img_np = np.array(img).astype(np.uint8)
+    
+    # 4. 生成 MD5
+    return hashlib.md5(img_np.tobytes()).hexdigest()
 
 # --- 4. 支持从文件读取提示词 ---
 def load_prompt_from_file(file_path: str, lang: str):
@@ -180,19 +199,6 @@ class Qwen3Caption:
         if unload_other_models:
             mm.cleanup_models_gc()
             mm.unload_all_models()
-        
-        model_dir = os.path.dirname(folder_paths.get_full_path_or_raise("text_encoders", model_path))
-        # --- A. 模型加载/复用 (时间效率优化) ---
-        cache_key = (model_dir, dtype)
-        if cache_key not in QWEN_MODEL_CACHE:
-            #print(f"Qwen2.5 VL: 首次加载模型 {model_dir}...")
-            try:
-                self.model, self.processor = load_qwen_components(model_dir, dtype)
-            except Exception as e:
-                return {"ui": {"text": ("Failed to load model, 模型加载失败",)}, "result": ("Failed to load model, 模型加载失败",)} 
-            QWEN_MODEL_CACHE[cache_key] = (self.model, self.processor)
-        else:
-            self.model, self.processor = QWEN_MODEL_CACHE[cache_key]
 
         # --- C. 构造消息和提示词模板 ---
         #if lang == "English":
@@ -215,10 +221,25 @@ class Qwen3Caption:
                 text_prompt = instruction + "，返回它们的最小边界框坐标列表。结果必须是一个Python列表的列表，即 [[x1, y1, x2, y2], [x3, y3, x4, y4], ...] 格式。坐标要求：所有坐标值必须是整数。坐标是归一化的，范围是0到1000（表示 0% 到 100% 乘以 10）。每个边界框的顺序为：[左上角X, 左上角Y, 右下角X, 右下角Y]。示例输出：[[250, 150, 450, 500], [600, 700, 800, 950]]请仅输出这个列表结构，不包含任何解释性文字或代码块。"
         print(text_prompt)
         
+        model_dir = os.path.dirname(folder_paths.get_full_path_or_raise("text_encoders", model_path))
+        
         # --- B. 图像预处理 ---
         
         if image is None:#无图
             #return {"ui": {"text": ("no image, 无图像",)}, "result": ("no image, 无图像",)} 
+            result_key = (model_dir, dtype, text_prompt, "none")
+            if result_key in QWEN_RESULT_CACHE:
+                self.model, self.processor = None, None
+                # --- 显存清理 ---
+                if not keep_model_loaded:
+                    QWEN_MODEL_CACHE.clear()
+                    mm.cleanup_models_gc()
+                gc.collect()
+                mm.soft_empty_cache()
+                output_text = QWEN_RESULT_CACHE[result_key]
+                print(output_text)
+                return {"ui": {"text": (output_text,)}, "result": (output_text,)}
+            
             messages = [
                 {
                     "role": "user",
@@ -228,10 +249,25 @@ class Qwen3Caption:
                 }
             ]
         elif image.ndim == 4 and image.shape[0] > 1:#多图
+            #pil_image_1 = Image.fromarray((image[0].cpu().numpy() * 255).round().clip(0, 255).astype(np.uint8))
+            pil_image_mid = Image.fromarray((image[image.shape[0]//2].cpu().numpy() * 255).round().clip(0, 255).astype(np.uint8))
+            result_key = (model_dir, dtype, text_prompt, get_image_hash(pil_image_mid)+str(image.shape[0])+str(video_fps)+str(max_side))
+            if result_key in QWEN_RESULT_CACHE:
+                self.model, self.processor = None, None
+                # --- 显存清理 ---
+                if not keep_model_loaded:
+                    QWEN_MODEL_CACHE.clear()
+                    mm.cleanup_models_gc()
+                gc.collect()
+                mm.soft_empty_cache()
+                output_text = QWEN_RESULT_CACHE[result_key]
+                print(output_text)
+                return {"ui": {"text": (output_text,)}, "result": (output_text,)}
+            
             video_frames_processed = []
             for i in range(image.shape[0]):
                 # 逐帧转换 (N, H, W, C) -> (H, W, C)
-                pil_frame = Image.fromarray((image[i].cpu().numpy() * 255).astype(np.uint8))
+                pil_frame = Image.fromarray((image[i].cpu().numpy() * 255).round().clip(0, 255).astype(np.uint8))
                 # 处理alpha
                 # if pil_frame.mode == 'RGBA':
                 # # 调用 vision_process.py 里的逻辑转为 RGB
@@ -257,7 +293,21 @@ class Qwen3Caption:
                 #what's this?
                 image_tensor = image
             # 转换
-            pil_image = Image.fromarray((image_tensor.cpu().numpy() * 255).astype(np.uint8))
+            pil_image = Image.fromarray((image_tensor.cpu().numpy() * 255).round().clip(0, 255).astype(np.uint8))
+            
+            result_key = (model_dir, dtype, text_prompt, get_image_hash(pil_image)+str(max_side))
+            if result_key in QWEN_RESULT_CACHE:
+                self.model, self.processor = None, None
+                # --- 显存清理 ---
+                if not keep_model_loaded:
+                    QWEN_MODEL_CACHE.clear()
+                    mm.cleanup_models_gc()
+                gc.collect()
+                mm.soft_empty_cache()
+                output_text = QWEN_RESULT_CACHE[result_key]
+                print(output_text)
+                return {"ui": {"text": (output_text,)}, "result": (output_text,)}
+            
             # 处理alpha
             # if pil_image.mode == 'RGBA':
                 # # 调用 vision_process.py 里的逻辑转为 RGB
@@ -276,6 +326,25 @@ class Qwen3Caption:
                     ],
                 }
             ]
+        
+        # --- A. 模型加载/复用 (时间效率优化) ---
+        model_key = (model_dir, dtype)
+        if model_key not in QWEN_MODEL_CACHE:
+            #print(f"Qwen2.5 VL: 首次加载模型 {model_dir}...")
+            try:
+                self.model, self.processor = load_qwen_components(model_dir, dtype)
+            except Exception as e:
+                self.model, self.processor = None, None
+                return {"ui": {"text": ("Failed to load model, 模型加载失败",)}, "result": ("Failed to load model, 模型加载失败",)} 
+            QWEN_MODEL_CACHE[model_key] = (self.model, self.processor)
+            # Limit cache size to prevent OOM
+            if len(QWEN_MODEL_CACHE) > _model_cache_size:
+                # Remove oldest entries
+                keys_to_remove = list(QWEN_MODEL_CACHE.keys())[:len(QWEN_MODEL_CACHE) - _model_cache_size]
+                for key in keys_to_remove:
+                    del QWEN_MODEL_CACHE[key]
+        else:
+            self.model, self.processor = QWEN_MODEL_CACHE[model_key]
         
         # --- D. 预处理、推理和解码 ---
         # inputs = self.processor.apply_chat_template(
@@ -331,20 +400,29 @@ class Qwen3Caption:
         output_text = self.processor.batch_decode(
             generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
         )[0] # 取第一个解码结果
-        # --- E. 显存清理 ---
+        
+        print(output_text)
+        
+        # Cache the result
+        QWEN_RESULT_CACHE[result_key] = output_text
+
+        # Limit cache size to prevent memory growth
+        if len(QWEN_RESULT_CACHE) > _result_cache_size:
+            # Remove oldest entries
+            keys_to_remove = list(QWEN_RESULT_CACHE.keys())[:len(QWEN_RESULT_CACHE) - _result_cache_size]
+            for key in keys_to_remove:
+                del QWEN_RESULT_CACHE[key]
+        
+        self.model, self.processor = None, None
+        # --- 显存清理 ---
         if not keep_model_loaded:
-             del self.model, self.processor
-             if cache_key in QWEN_MODEL_CACHE:
-                 del QWEN_MODEL_CACHE[cache_key]
-             self.model, self.processor= None, None
-             mm.cleanup_models_gc()
-             
+            QWEN_MODEL_CACHE.clear()
+            mm.cleanup_models_gc()     
         # 强制清理 GPU 缓存 (显存优化)
         gc.collect()
         mm.soft_empty_cache()
         
-        print(output_text)
-        return {"ui": {"text": (output_text,)}, "result": (output_text,)} # 必须以元组形式返回
+        return {"ui": {"text": (output_text,)}, "result": (output_text,)}
         
 
 class Qwen3CaptionBatch:
@@ -381,7 +459,7 @@ class Qwen3CaptionBatch:
         
         count = 0
             
-		# 1. 验证输入路径
+        # 1. 验证输入路径
         if not image_path or not os.path.isdir(image_path):
             error = "0 image captioned, 共处理0张图片"
             return {"ui": {"text": (error,)}, "result": (error,)}
@@ -393,17 +471,11 @@ class Qwen3CaptionBatch:
 		
         model_dir = os.path.dirname(folder_paths.get_full_path_or_raise("text_encoders", model_path))
         
+        mm.cleanup_models_gc()
+        mm.unload_all_models()
         # --- A. 模型加载/复用 (时间效率优化) ---
-        cache_key = (model_dir, dtype)
-        if cache_key not in QWEN_MODEL_CACHE:
-            #print(f"Qwen3 VL: 首次加载模型 {model_dir}...")
-            try:
-                self.model, self.processor = load_qwen_components(model_dir, dtype)
-            except Exception as e:
-                return {"ui": {"text": ("Failed to load model, 模型加载失败",)}, "result": ("Failed to load model, 模型加载失败",)} 
-            QWEN_MODEL_CACHE[cache_key] = (self.model, self.processor)
-        else:
-             self.model, self.processor = QWEN_MODEL_CACHE[cache_key]
+        model_key = (model_dir, dtype)
+        
 
         # --- B. 图像预处理和 OOM 修复 (显存效率优化) ---
        
@@ -433,62 +505,97 @@ class Qwen3CaptionBatch:
             # elif lang == "bbox":
                 # text_prompt = instruction + "，返回它们的最小边界框坐标列表。结果必须是一个Python列表的列表，即 [[x1, y1, x2, y2], [x3, y3, x4, y4], ...] 格式。坐标要求：所有坐标值必须是整数。坐标是归一化的，范围是0到1000（表示 0% 到 100% 乘以 10）。每个边界框的顺序为：[左上角X, 左上角Y, 右下角X, 右下角Y]。示例输出：[[250, 150, 450, 500], [600, 700, 800, 950]]请仅输出这个列表结构，不包含任何解释性文字或代码块。"
         print(text_prompt)
-        
+
         for img_file in image_files:
             try:
-                # 5.1 读取图片
                 img_path = os.path.join(image_path, img_file)
-                pil_image = Image.open(img_path)
-                # 确保RGB格式
-                if pil_image.mode == 'RGBA':
-                # 调用 vision_process.py 里的逻辑转为 RGB
-                    pil_image = to_rgb(pil_image) 
-                elif pil_image.mode != 'RGB':
-                    pil_image = pil_image.convert('RGB')
-                # 5.2 图像预处理
-                pil_image_resized = resize_to_limit(pil_image, max_side)
-				
-                messages = [
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "image", "image": pil_image_resized},
-                            {"type": "text", "text": text_prompt},
-                        ]
-                    }
-                ]
+                # 5.1 读取图片
+                pil_raw = Image.open(img_path)
+                pil_image = ImageOps.exif_transpose(pil_raw)
+                
+                # 缓存机制
+                result_key = (model_dir, dtype, text_prompt, get_image_hash(pil_image)+str(max_side))
+                if result_key in QWEN_RESULT_CACHE:
+                    output_text = QWEN_RESULT_CACHE[result_key]
+                else:
+                    # 确保RGB格式
+                    if pil_image.mode == 'RGBA':
+                    # 调用 vision_process.py 里的逻辑转为 RGB
+                        pil_image = to_rgb(pil_image) 
+                    elif pil_image.mode != 'RGB':
+                        pil_image = pil_image.convert('RGB')
+                    # 5.2 图像预处理
+                    pil_image_resized = resize_to_limit(pil_image, max_side)
+                    
+                    messages = [
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "image", "image": pil_image_resized},
+                                {"type": "text", "text": text_prompt},
+                            ]
+                        }
+                    ]
+                    
+                    # 按需加载模型
+                    if model_key not in QWEN_MODEL_CACHE:
+                        #print(f"Qwen3 VL: 首次加载模型 {model_dir}...")
+                        try:
+                            self.model, self.processor = load_qwen_components(model_dir, dtype)
+                        except Exception as e:
+                            self.model, self.processor = None, None
+                            return {"ui": {"text": ("Failed to load model, 模型加载失败",)}, "result": ("Failed to load model, 模型加载失败",)} 
+                        QWEN_MODEL_CACHE[model_key] = (self.model, self.processor)
+                        # Limit cache size to prevent OOM
+                        if len(QWEN_MODEL_CACHE) > _model_cache_size:
+                            # Remove oldest entries
+                            keys_to_remove = list(QWEN_MODEL_CACHE.keys())[:len(QWEN_MODEL_CACHE) - _model_cache_size]
+                            for key in keys_to_remove:
+                                del QWEN_MODEL_CACHE[key]
+                    else:
+                         self.model, self.processor = QWEN_MODEL_CACHE[model_key]
 
-                # 5.4 推理
-                inputs = self.processor.apply_chat_template(
-                    messages,
-                    tokenize=True,
-                    add_generation_prompt=True,
-                    return_dict=True,
-                    return_tensors="pt"
-                )
-                # image_inputs, video_inputs = process_vision_info(messages)
-                # inputs = self.processor(
-					# text=[text],
-					# images=image_inputs,
-					# videos=video_inputs,
-					# padding=True,
-					# return_tensors="pt",
-				# )
-                inputs = inputs.to(self.model.device)
-                with torch.no_grad():
-                    generated_ids = self.model.generate(
-                        **inputs,
-                        max_new_tokens=1024, 
+                    # 5.4 推理
+                    inputs = self.processor.apply_chat_template(
+                        messages,
+                        tokenize=True,
+                        add_generation_prompt=True,
+                        return_dict=True,
+                        return_tensors="pt"
                     )
+                    # image_inputs, video_inputs = process_vision_info(messages)
+                    # inputs = self.processor(
+                        # text=[text],
+                        # images=image_inputs,
+                        # videos=video_inputs,
+                        # padding=True,
+                        # return_tensors="pt",
+                    # )
+                    inputs = inputs.to(self.model.device)
+                    with torch.no_grad():
+                        generated_ids = self.model.generate(
+                            **inputs,
+                            max_new_tokens=1024, 
+                        )
 
-                # 5.5 解码结果
-                generated_ids_trimmed = [
-                    out_ids[len(in_ids):] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
-                ]
-                output_text = self.processor.batch_decode(
-                    generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
-                )[0]
+                    # 5.5 解码结果
+                    generated_ids_trimmed = [
+                        out_ids[len(in_ids):] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
+                    ]
+                    output_text = self.processor.batch_decode(
+                        generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
+                    )[0]
+                    
+                    # Cache the result
+                    QWEN_RESULT_CACHE[result_key] = output_text
 
+                    # Limit cache size to prevent memory growth
+                    if len(QWEN_RESULT_CACHE) > _batch_cache_size:
+                        # Remove oldest entries
+                        keys_to_remove = list(QWEN_RESULT_CACHE.keys())[:len(QWEN_RESULT_CACHE) - _batch_cache_size]
+                        for key in keys_to_remove:
+                            del QWEN_RESULT_CACHE[key]
+                
                 # 5.6 保存结果为同名txt文件
                 txt_filename = os.path.splitext(img_file)[0] + ".txt"
                 txt_path = os.path.join(save_path, txt_filename)
@@ -502,13 +609,11 @@ class Qwen3CaptionBatch:
                 continue
         print("")
         
+        self.model, self.processor = None, None
         # --- 6. 显存清理 ---
         if not keep_model_loaded:
-             del self.model, self.processor
-             if cache_key in QWEN_MODEL_CACHE:
-                 del QWEN_MODEL_CACHE[cache_key]
-             self.model, self.processor= None, None
-             mm.cleanup_models_gc()
+            QWEN_MODEL_CACHE.clear()
+            mm.cleanup_models_gc()
              
         # 强制清理 GPU 缓存 (显存优化)
         gc.collect()
