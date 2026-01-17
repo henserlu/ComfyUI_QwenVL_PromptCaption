@@ -1,3 +1,6 @@
+#将此文件改名为prompts.txt才会生效
+//Rename this file to prompts.txt to work
+
 #会使用最下方的提示词
 //Will use the prompt at the bottom
 
@@ -20,11 +23,6 @@ You are an expert AI Art prompt engineer. Based on the input image, generate a s
 ==English==
 Describe this image in detail. Use English
 #comment
-
-
-==中文==
-找到the girl with ginger hair，返回对象的在图片中的相对位置，具体格式是最小包含对象的方框的左上角和右小角的相对坐标，坐标按图片宽高的0-100%表示
-
 
 ==中文==
 详细描述这张图片，使用中文
