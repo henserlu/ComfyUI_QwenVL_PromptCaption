@@ -179,6 +179,7 @@ class Qwen3Caption:
                 "unload_other_models": ("BOOLEAN", {"default": True}), # 默认卸载其它模型
                 "lang": (["中文", "English", "bbox"], {"default": "中文"}),
                 "max_side": ("INT", {"default": 512, "min": 256, "max": 2240, "step": 32}), # 默认安全尺寸
+                "max_new_tokens": ("INT", {"default": 1024, "min": 1, "max": 8192, "step": 1}),
                 #"instruction": ("STRING", {"multiline": True}),
             },
             "optional": {
@@ -194,7 +195,7 @@ class Qwen3Caption:
     OUTPUT_NODE = True
 
 
-    def caption(self, model_path: str, lang: str, dtype: str, max_side: int, keep_model_loaded: bool, unload_other_models: bool, instruction: str = None, video_fps = 16, image: torch.Tensor = None):
+    def caption(self, model_path: str, lang: str, dtype: str, max_side: int, max_new_tokens: int, keep_model_loaded: bool, unload_other_models: bool, instruction: str = None, video_fps = 16, image: torch.Tensor = None):
         
         if unload_other_models:
             mm.cleanup_models_gc()
@@ -390,8 +391,8 @@ class Qwen3Caption:
         #inputs = inputs.to("cuda")
         with torch.no_grad():
             generated_ids = self.model.generate(
-            **inputs, 
-            max_new_tokens=1024,
+                **inputs, 
+                max_new_tokens=max_new_tokens,
             )
         # 解码并清理
         generated_ids_trimmed = [
@@ -441,6 +442,7 @@ class Qwen3CaptionBatch:
                 "dtype": (["auto", "4bit", "8bit"], {"default": "4bit"}), # 强烈建议默认 4bit
                 "keep_model_loaded": ("BOOLEAN", {"default": False}), # 默认保持加载
                 "max_side": ("INT", {"default": 512, "min": 256, "max": 2240, "step": 32}), # 默认安全尺寸
+                "max_new_tokens": ("INT", {"default": 1024, "min": 1, "max": 8192, "step": 1}),
                 "image_path": ("STRING", {"default": ""}),
                 },
             "optional": {
@@ -455,7 +457,7 @@ class Qwen3CaptionBatch:
     OUTPUT_NODE = True
 
 
-    def batch_caption(self, model_path: str, lang: str, dtype: str, max_side: int, keep_model_loaded: bool, image_path: str, instruction: str, save_path: str = ""):
+    def batch_caption(self, model_path: str, lang: str, dtype: str, max_side: int, max_new_tokens: int, keep_model_loaded: bool, image_path: str, instruction: str, save_path: str = ""):
         
         count = 0
             
@@ -575,7 +577,7 @@ class Qwen3CaptionBatch:
                     with torch.no_grad():
                         generated_ids = self.model.generate(
                             **inputs,
-                            max_new_tokens=1024, 
+                            max_new_tokens=max_new_tokens,
                         )
 
                     # 5.5 解码结果
