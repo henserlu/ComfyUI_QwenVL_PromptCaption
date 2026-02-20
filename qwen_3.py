@@ -180,6 +180,7 @@ class Qwen3Caption:
                 "lang": (["中文", "English", "bbox"], {"default": "中文"}),
                 "max_side": ("INT", {"default": 512, "min": 256, "max": 2240, "step": 32}), # 默认安全尺寸
                 "max_new_tokens": ("INT", {"default": 1024, "min": 1, "max": 8192, "step": 1}),
+                "repetition_penalty": ("FLOAT", {"default": 1.0, "min": 1.0, "max": 2.0, "step": 0.01}),
                 #"instruction": ("STRING", {"multiline": True}),
             },
             "optional": {
@@ -195,7 +196,7 @@ class Qwen3Caption:
     OUTPUT_NODE = True
 
 
-    def caption(self, model_path: str, lang: str, dtype: str, max_side: int, max_new_tokens: int, keep_model_loaded: bool, unload_other_models: bool, instruction: str = None, video_fps = 16, image: torch.Tensor = None):
+    def caption(self, model_path: str, lang: str, dtype: str, max_side: int, max_new_tokens: int, repetition_penalty: float, keep_model_loaded: bool, unload_other_models: bool, instruction: str = None, video_fps = 16, image: torch.Tensor = None):
         
         if unload_other_models:
             mm.cleanup_models_gc()
@@ -393,6 +394,7 @@ class Qwen3Caption:
             generated_ids = self.model.generate(
                 **inputs, 
                 max_new_tokens=max_new_tokens,
+                repetition_penalty=repetition_penalty,
             )
         # 解码并清理
         generated_ids_trimmed = [
@@ -443,6 +445,7 @@ class Qwen3CaptionBatch:
                 "keep_model_loaded": ("BOOLEAN", {"default": False}), # 默认保持加载
                 "max_side": ("INT", {"default": 512, "min": 256, "max": 2240, "step": 32}), # 默认安全尺寸
                 "max_new_tokens": ("INT", {"default": 1024, "min": 1, "max": 8192, "step": 1}),
+                "repetition_penalty": ("FLOAT", {"default": 1.0, "min": 1.0, "max": 2.0, "step": 0.01}),
                 "image_path": ("STRING", {"default": ""}),
                 },
             "optional": {
@@ -457,7 +460,7 @@ class Qwen3CaptionBatch:
     OUTPUT_NODE = True
 
 
-    def batch_caption(self, model_path: str, lang: str, dtype: str, max_side: int, max_new_tokens: int, keep_model_loaded: bool, image_path: str, instruction: str, save_path: str = ""):
+    def batch_caption(self, model_path: str, lang: str, dtype: str, max_side: int, max_new_tokens: int, repetition_penalty: float, keep_model_loaded: bool, image_path: str, instruction: str, save_path: str = ""):
         
         count = 0
             
@@ -578,6 +581,7 @@ class Qwen3CaptionBatch:
                         generated_ids = self.model.generate(
                             **inputs,
                             max_new_tokens=max_new_tokens,
+                            repetition_penalty=repetition_penalty,
                         )
 
                     # 5.5 解码结果
