@@ -196,7 +196,7 @@ class Qwen3Caption:
     OUTPUT_NODE = True
 
 
-    def caption(self, model_path: str, lang: str, dtype: str, max_side: int, max_new_tokens: int, repetition_penalty: float, keep_model_loaded: bool, unload_other_models: bool, instruction: str = None, video_fps = 16, image: torch.Tensor = None):
+    def caption(self, model_path: str, lang: str, dtype: str, max_side: int, max_new_tokens: int, repetition_penalty: float, keep_model_loaded: bool, unload_other_models: bool, instruction: str = None, video_fps: int = 16, image: torch.Tensor = None):
         
         if unload_other_models:
             mm.cleanup_models_gc()
