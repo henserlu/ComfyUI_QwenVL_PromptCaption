@@ -153,15 +153,16 @@ class Qwen25Caption:
     def INPUT_TYPES(s):
         return {
             "required": {
-                "image": ("IMAGE", ), # ComfyUI 的图像输入 Tensor
                 "model_path": (folder_paths.get_filename_list("text_encoders"), ),
-                "lang": (["中文", "English", "bbox"], {"default": "中文"}),
                 "dtype": (["auto", "4bit", "8bit"], {"default": "auto"}), # 强烈建议默认 4bit
                 "keep_model_loaded": ("BOOLEAN", {"default": False}), # 默认保持加载
+                "lang": (["中文", "English", "bbox"], {"default": "中文"}),
                 "max_side": ("INT", {"default": 532, "min": 252, "max": 2240, "step": 28}), # 默认安全尺寸
-                #"instruction": ("STRING", {"multiline": True}),
+                "max_new_tokens": ("INT", {"default": 1024, "min": 1, "max": 8192, "step": 1}),
+                "repetition_penalty": ("FLOAT", {"default": 1.0, "min": 1.0, "max": 2.0, "step": 0.01}),
             },
             "optional": {
+                "image": ("IMAGE", ),
                 "instruction": ("STRING", {"multiline": True}),
             }
         }
@@ -172,7 +173,7 @@ class Qwen25Caption:
     OUTPUT_NODE = True
 
 
-    def caption(self, image: torch.Tensor, model_path: str, lang: str, dtype: str, max_side: int, keep_model_loaded: bool, instruction: str):
+    def caption(self, model_path: str, dtype: str, keep_model_loaded: bool, lang: str, max_side: int, max_new_tokens: int, repetition_penalty: float, instruction: str = "", image: torch.Tensor = None):
         
         if image is None:
             return {"ui": {"text": ("no image, 无图像",)}, "result": ("no image, 无图像",)} 
@@ -242,8 +243,9 @@ class Qwen25Caption:
         #inputs = inputs.to("cuda")
         with torch.no_grad():
             generated_ids = self.model.generate(
-            **inputs, 
-            max_new_tokens=1024,
+                **inputs, 
+                max_new_tokens=max_new_tokens,
+                repetition_penalty=repetition_penalty,
             )
         # 解码并清理
         generated_ids_trimmed = [
@@ -283,6 +285,8 @@ class Qwen25CaptionBatch:
                 "dtype": (["auto", "4bit", "8bit"], {"default": "4bit"}), # 强烈建议默认 4bit
                 "keep_model_loaded": ("BOOLEAN", {"default": False}), # 默认保持加载
                 "max_side": ("INT", {"default": 532, "min": 252, "max": 2240, "step": 28}), # 默认安全尺寸
+                "max_new_tokens": ("INT", {"default": 1024, "min": 1, "max": 8192, "step": 1}),
+                "repetition_penalty": ("FLOAT", {"default": 1.0, "min": 1.0, "max": 2.0, "step": 0.01}),
                 "image_path": ("STRING", {"default": ""}),
                 },
             "optional": {
@@ -297,7 +301,7 @@ class Qwen25CaptionBatch:
     OUTPUT_NODE = True
 
 
-    def batch_caption(self, model_path: str, lang: str, dtype: str, max_side: int, keep_model_loaded: bool, image_path: str, instruction: str, save_path: str = ""):
+    def batch_caption(self, model_path: str, lang: str, dtype: str, keep_model_loaded: bool, max_side: int, max_new_tokens: int, repetition_penalty: float, image_path: str, instruction: str = "", save_path: str = ""):
         
         count = 0
             
@@ -387,7 +391,8 @@ class Qwen25CaptionBatch:
                 with torch.no_grad():
                     generated_ids = self.model.generate(
                         **inputs,
-                        max_new_tokens=1024, 
+                        max_new_tokens=max_new_tokens,
+                        repetition_penalty=repetition_penalty,
                     )
 
                 # 5.5 解码结果
